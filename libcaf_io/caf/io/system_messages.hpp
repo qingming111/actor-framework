@@ -29,8 +29,10 @@
 #include "caf/meta/hex_formatted.hpp"
 
 #include "caf/io/handle.hpp"
+#include "caf/io/dgram_handle.hpp"
 #include "caf/io/accept_handle.hpp"
 #include "caf/io/connection_handle.hpp"
+#include "caf/io/network/receive_buffer.hpp"
 
 namespace caf {
 namespace io {
@@ -126,6 +128,58 @@ template <class Inspector>
 typename Inspector::result_type
 inspect(Inspector& f, acceptor_passivated_msg& x) {
   return f(meta::type_name("acceptor_passivated_msg"), x.handle);
+}
+
+/// Signalizes that a datagram with a certain size has been sent.
+struct new_datagram_msg {
+  // Handle to the endpoint used.
+  dgram_handle handle;
+  // Buffer containing received data.
+  network::receive_buffer buf;
+};
+
+/// @relates new_datagram_msg
+template <class Inspector>
+typename Inspector::result_type inspect(Inspector& f, new_datagram_msg& x) {
+  return f(meta::type_name("new_datagram_msg"), x.handle, x.buf);
+}
+
+/// Signalizes that a datagram with a certain size has been sent.
+struct datagram_sent_msg {
+  // Handle to the endpoint used.
+  dgram_handle handle;
+  // number of bytes written.
+  uint64_t written;
+};
+
+/// @relates datagram_sent_msg
+template <class Inspector>
+typename Inspector::result_type inspect(Inspector& f, datagram_sent_msg& x) {
+  return f(meta::type_name("datagram_sent_msg"), x.handle, x.written);
+}
+
+/// Signalizes that a datagram sink has entered passive mode.
+struct dgram_servant_passivated_msg {
+  dgram_handle handle;
+};
+
+/// @relates dgram_servant_passivated_msg
+template <class Inspector>
+typename Inspector::result_type
+inspect(Inspector& f, dgram_servant_passivated_msg& x) {
+  return f(meta::type_name("dgram_servant_passivated_msg"), x.handle);
+}
+
+/// Signalizes that a datagram endpoint has entered passive mode.
+struct dgram_servant_closed_msg {
+  std::vector<dgram_handle> handles;
+};
+
+/// @relates dgram_servant_closed_msg
+template <class Inspector>
+typename Inspector::result_type
+inspect(Inspector& f, dgram_servant_closed_msg& x) {
+  return f(meta::type_name("dgram_servant_closed_msg"), x.handles);
 }
 
 } // namespace io

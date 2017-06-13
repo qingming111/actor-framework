@@ -65,7 +65,9 @@ const char* sec_strings[] = {
   "no_downstream_stages_defined",
   "stream_init_failed",
   "invalid_stream_state",
-  "bad_function_call"
+  "bad_function_call",
+  "unsupported_protocol",
+  "feature_disabled"
 };
 
 } // namespace <anonymous>

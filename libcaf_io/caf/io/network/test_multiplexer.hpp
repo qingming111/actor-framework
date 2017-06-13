@@ -26,12 +26,18 @@
 #include "caf/io/abstract_broker.hpp"
 
 #include "caf/io/network/multiplexer.hpp"
+#include "caf/io/network/receive_buffer.hpp"
 
 namespace caf {
 namespace io {
 namespace network {
 
 class test_multiplexer : public multiplexer {
+private:
+  struct dgram_servant_data;
+
+  using dgram_data_ptr = std::shared_ptr<dgram_servant_data>;
+
 public:
   explicit test_multiplexer(actor_system* sys);
 
@@ -47,6 +53,18 @@ public:
   expected<doorman_ptr> new_tcp_doorman(uint16_t prt, const char* in,
                                         bool reuse_addr) override;
 
+  dgram_servant_ptr new_dgram_servant(native_socket fd) override;
+
+  dgram_servant_ptr
+  new_dgram_servant_for_endpoint(native_socket fd, ip_endpoint& ep) override;
+
+  expected<dgram_servant_ptr>
+  new_remote_udp_endpoint(const std::string& host, uint16_t port) override;
+
+  expected<dgram_servant_ptr>
+  new_local_udp_endpoint(uint16_t port, const char* in = nullptr,
+                         bool reuse_addr = false) override;
+
   /// Checks whether `x` is assigned to any known doorman or is user-provided
   /// for future assignment.
   bool is_known_port(uint16_t x) const;
@@ -54,6 +72,8 @@ public:
   /// Checks whether `x` is assigned to any known doorman or is user-provided
   /// for future assignment.
   bool is_known_handle(accept_handle x) const;
+
+  bool is_known_handle(dgram_handle x) const;
 
   supervisor_ptr make_supervisor() override;
 
@@ -67,19 +87,48 @@ public:
 
   doorman_ptr new_doorman(accept_handle, uint16_t port);
 
+public:
+  dgram_servant_ptr new_dgram_servant_with_data(dgram_handle hdl,
+                                                dgram_data_ptr data);
+
+  dgram_servant_ptr new_dgram_servant(dgram_handle, uint16_t port);
+
+  dgram_servant_ptr new_dgram_servant(dgram_handle, const std::string& host,
+                                      uint16_t port);
+
   void provide_scribe(std::string host, uint16_t desired_port,
                       connection_handle hdl);
 
   void provide_acceptor(uint16_t desired_port, accept_handle hdl);
 
-  /// A buffer storing bytes.
+  void provide_dgram_servant(uint16_t desired_port, dgram_handle hdl);
+
+  void provide_dgram_servant(std::string host, uint16_t desired_port,
+                             dgram_handle hdl);
+
+  /// Generate an id for a new servant.
+  int64_t next_endpoint_id();
+
+  /// A buffer storing bytes used for TCP related components.
   using buffer_type = std::vector<char>;
 
+  /// Buffers storing bytes for UDP related components.
+  using read_buffer_type = network::receive_buffer;
+  using write_buffer_type = buffer_type;
+  using read_job_type = std::pair<int64_t, read_buffer_type>;
+  using write_job_type = std::pair<int64_t, write_buffer_type>;
+  using write_job_queue_type = std::deque<write_job_type>;
+
   using shared_buffer_type = std::shared_ptr<buffer_type>;
+  using shared_job_queue_type = std::shared_ptr<write_job_queue_type>;
 
   /// Models pending data on the network, i.e., the network
   /// input buffer usually managed by the operating system.
   buffer_type& virtual_network_buffer(connection_handle hdl);
+
+  /// Models pending data on the network, i.e., the network
+  /// input buffer usually managed by the operating system.
+  write_job_queue_type& virtual_network_buffer(dgram_handle hdl);
 
   /// Returns the output buffer of the scribe identified by `hdl`.
   buffer_type& output_buffer(connection_handle hdl);
@@ -87,22 +136,55 @@ public:
   /// Returns the input buffer of the scribe identified by `hdl`.
   buffer_type& input_buffer(connection_handle hdl);
 
+  /// Returns the output buffer of the dgram servant identified by `hdl`.
+  write_job_type& output_buffer(dgram_handle hdl);
+
+  /// Returns the queue with all outgoing datagrams for the dgram servant
+  /// identified by `hdl`.
+  write_job_queue_type& output_queue(dgram_handle hdl);
+
+  /// Returns the input buffer of the dgram servant identified by `hdl`.
+  read_job_type& input_buffer(dgram_handle hdl);
+
   /// Returns the configured read policy of the scribe identified by `hdl`.
   receive_policy::config& read_config(connection_handle hdl);
 
   /// Returns whether the scribe identified by `hdl` receives write ACKs.
   bool& ack_writes(connection_handle hdl);
 
+  /// Returns whether the dgram servant identified by `hdl` receives write ACKs.
+  bool& ack_writes(dgram_handle hdl);
+
   /// Returns `true` if this handle has been closed
   /// for reading, `false` otherwise.
   bool& stopped_reading(connection_handle hdl);
 
+  /// Returns `true` if this handle has been closed
+  /// for reading, `false` otherwise.
+  bool& stopped_reading(dgram_handle hdl);
+
   /// Returns `true` if this handle is inactive, otherwise `false`.
   bool& passive_mode(connection_handle hdl);
+
+  /// Returns `true` if this handle is inactive, otherwise `false`.
+  bool& passive_mode(dgram_handle hdl);
 
   scribe_ptr& impl_ptr(connection_handle hdl);
 
   uint16_t& port(accept_handle hdl);
+
+  uint16_t& port(dgram_handle hdl);
+
+  uint16_t& local_port(dgram_handle hdl);
+
+  size_t& datagram_size(dgram_handle hdl);
+
+  dgram_servant_ptr& impl_ptr(dgram_handle hdl);
+
+  using servants_map = std::unordered_map<int64_t, dgram_handle>;
+
+  /// Returns a map with all servants related to the servant `hdl`.
+  servants_map& servants(dgram_handle hdl);
 
   /// Returns `true` if this handle has been closed
   /// for reading, `false` otherwise.
@@ -123,17 +205,31 @@ public:
                           test_multiplexer& peer, std::string host,
                           uint16_t port, connection_handle peer_hdl);
 
+  /// Stores `hdl` as a pending endpoint for `src`.
+  void add_pending_endpoint(dgram_handle src, dgram_handle hdl);
+
   using pending_connects_map = std::unordered_multimap<accept_handle,
                                                        connection_handle>;
 
   pending_connects_map& pending_connects();
+
+  using pending_endpoints_map = std::unordered_map<int64_t, dgram_handle>;
+
+  pending_endpoints_map& pending_endpoints();
 
   using pending_scribes_map = std::map<std::pair<std::string, uint16_t>,
                                        connection_handle>;
 
   using pending_doorman_map = std::unordered_map<uint16_t, accept_handle>;
 
+  using pending_local_dgram_endpoints_map = std::map<uint16_t, dgram_handle>;
+
+  using pending_remote_dgram_endpoints_map
+    = std::map<std::pair<std::string, uint16_t>, dgram_handle>;
+
   bool has_pending_scribe(std::string x, uint16_t y);
+
+  bool has_pending_remote_endpoint(std::string x, uint16_t y);
 
   /// Accepts a pending connect on `hdl`.
   void accept_connection(accept_handle hdl);
@@ -154,9 +250,19 @@ public:
   /// the configured read policy no longer allows receiving.
   bool read_data(connection_handle hdl);
 
+  /// Reads the next datagram from the external input buffer.
+  bool read_data(dgram_handle hdl);
+
   /// Appends `buf` to the virtual network buffer of `hdl`
   /// and calls `read_data(hdl)` afterwards.
   void virtual_send(connection_handle hdl, const buffer_type& buf);
+
+  /// Appends `buf` to the virtual network buffer of `hdl`
+  /// and calls `read_data(hdl)` afterwards.
+  void virtual_send(dgram_handle src, int64_t ep, const buffer_type&);
+
+  /// Handle communication with `hdl`.
+  //void handle_endpoint(dgram_handle hdl);
 
   /// Waits until a `runnable` is available and executes it.
   void exec_runnable();
@@ -223,19 +329,48 @@ private:
     doorman_data();
   };
 
+  struct dgram_servant_data {
+    shared_job_queue_type vn_buf_ptr;
+    shared_job_queue_type wr_buf_ptr;
+    write_job_queue_type& vn_buf;
+    write_job_queue_type& wr_buf;
+    read_job_type rd_buf;
+    dgram_servant_ptr ptr;
+    bool stopped_reading;
+    bool passive_mode;
+    bool ack_writes;
+    uint16_t port;
+    uint16_t local_port;
+    servants_map servants;
+    size_t datagram_size;
+
+    // Allows creating an entangled scribes where the input of this scribe is
+    // the output of another scribe and vice versa.
+    dgram_servant_data(
+      shared_job_queue_type input = std::make_shared<write_job_queue_type>(),
+      shared_job_queue_type output = std::make_shared<write_job_queue_type>()
+    );
+  };
+
   using scribe_data_map = std::unordered_map<connection_handle, scribe_data>;
 
   using doorman_data_map = std::unordered_map<accept_handle, doorman_data>;
+
+  using dgram_data_map = std::unordered_map<dgram_handle, dgram_data_ptr>;
 
   // guards resumables_ and scribes_
   std::mutex mx_;
   std::condition_variable cv_;
   std::list<resumable_ptr> resumables_;
   pending_scribes_map scribes_;
-  std::unordered_map<uint16_t, accept_handle> doormen_;
+  pending_doorman_map doormen_;
   scribe_data_map scribe_data_;
   doorman_data_map doorman_data_;
+  pending_local_dgram_endpoints_map local_endpoints_;
+  pending_remote_dgram_endpoints_map remote_endpoints_;
   pending_connects_map pending_connects_;
+  pending_endpoints_map pending_endpoints_;
+  dgram_data_map dgram_data_;
 
   // extra state for making sure the test multiplexer is not used in a
   // multithreaded setup
@@ -246,6 +381,8 @@ private:
 
   // Configures a one-shot handler for the next inlined runnable.
   std::function<void()> inline_runnable_callback_;
+
+  int64_t servant_ids_;
 };
 
 } // namespace network
