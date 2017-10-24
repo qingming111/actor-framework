@@ -17,70 +17,22 @@
  * http://www.boost.org/LICENSE_1_0.txt.                                      *
  ******************************************************************************/
 
-#include "caf/config_option.hpp"
-
-#include <iostream>
+#include "caf/config_value.hpp"
 
 namespace caf {
 
-const char* type_name_visitor_tbl[] {
-  "a boolean", 
-  "a float", 
-  "a double",
-  "a string",
-  "an atom_value",
-  "an 8-bit integer",
-  "an 8-bit unsigned integer",
-  "a 16-bit integer",
-  "a 16-bit unsigned integer",
-  "a 32-bit integer",
-  "a 32-bit unsigned integer",
-  "a 64-bit integer",
-  "a 64-bit unsigned integer",
-  "a duration"
-};
-
-config_option::config_option(const char* cat, const char* nm, const char* expl)
-    : category_(cat),
-      name_(nm),
-      explanation_(expl),
-      short_name_('\0') {
-  auto last = name_.end();
-  auto comma = std::find(name_.begin(), last, ',');
-  if (comma != last) {
-    auto i = comma;
-    ++i;
-    if (i != last)
-      short_name_ = *i;
-    name_.erase(comma, last);
-  }
-}
-
-config_option::~config_option() {
+config_value::config_value(config_value& other) : data_(other.data_) {
   // nop
 }
 
-std::string config_option::full_name() const {
-  std::string res = category();
-  res += '.';
-  auto name_begin = name();
-  const char* name_end = strchr(name(), ',');
-  if (name_end != nullptr)
-    res.insert(res.end(), name_begin, name_end);
-  else
-    res += name();
-  return res;
+config_value& config_value::operator=(config_value& other) {
+  data_ = other.data_;
+  return *this;
 }
 
-void config_option::report_type_error(size_t ln, config_value& x,
-                                      const char* expected,
-                                      optional<std::ostream&> out) {
-  if (!out)
-    return;
-  type_name_visitor tnv;
-  *out << "error in line " << ln << ": expected "
-       << expected << " found "
-       << visit(tnv, x) << '\n';
+config_value::~config_value() {
+  // nop
 }
 
 } // namespace caf
+
