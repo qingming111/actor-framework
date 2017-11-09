@@ -21,7 +21,8 @@
 
 namespace caf {
 
-random_gatherer::random_gatherer(local_actor* selfptr) : super(selfptr) {
+random_gatherer::random_gatherer(local_actor* selfptr, stream_scatterer&)
+    : super(selfptr) {
   // nop
 }
 

@@ -23,6 +23,10 @@
 
 namespace caf {
 
+terminal_stream_scatterer::terminal_stream_scatterer(local_actor*) {
+  // nop
+}
+
 terminal_stream_scatterer::~terminal_stream_scatterer() {
   // nop
 }
