@@ -43,7 +43,7 @@ terminal_stream_scatterer::add_path(const stream_id&, strong_actor_ptr,
 
 stream_scatterer::path_ptr
 terminal_stream_scatterer::confirm_path(const stream_id&, const actor_addr&,
-                                        strong_actor_ptr, long, bool) {
+                                        strong_actor_ptr, long, long, bool) {
   CAF_LOG_ERROR("terminal_stream_scatterer::confirm_path called");
   return nullptr;
 }
@@ -108,10 +108,6 @@ long terminal_stream_scatterer::min_batch_size() const {
   return 0;
 }
 
-long terminal_stream_scatterer::max_batch_size() const {
-  return 0;
-}
-
 long terminal_stream_scatterer::min_buffer_size() const {
   return 0;
 }
@@ -121,14 +117,6 @@ duration terminal_stream_scatterer::max_batch_delay() const {
 }
 
 void terminal_stream_scatterer::min_batch_size(long) {
-  // nop
-}
-
-void terminal_stream_scatterer::max_batch_size(long) {
-  // nop
-}
-
-void terminal_stream_scatterer::min_buffer_size(long) {
   // nop
 }
 

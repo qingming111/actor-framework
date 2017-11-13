@@ -40,7 +40,7 @@ public:
 
   path_ptr confirm_path(const stream_id& sid, const actor_addr& from,
                         strong_actor_ptr to, long initial_demand,
-                        bool redeployable) override;
+                        long desired_batch_size, bool redeployable) override;
 
   bool remove_path(const stream_id& sid, const actor_addr& x,
                            error reason, bool silent) override;
@@ -71,17 +71,11 @@ public:
 
   long min_batch_size() const override;
 
-  long max_batch_size() const override;
-
   long min_buffer_size() const override;
 
   duration max_batch_delay() const override;
 
   void min_batch_size(long x) override;
-
-  void max_batch_size(long x) override;
-
-  void min_buffer_size(long x) override;
 
   void max_batch_delay(duration x) override;
 };
