@@ -35,12 +35,6 @@ public:
     // nop
   }
 
-  using super::min_batch_size;
-
-  long min_batch_size() const override {
-    return 1;
-  }
-
   long min_buffer_size() const override {
     return 5;
   }
