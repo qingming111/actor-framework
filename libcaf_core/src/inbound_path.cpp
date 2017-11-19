@@ -36,6 +36,7 @@ inbound_path::inbound_path(local_actor* selfptr, const stream_id& id,
       last_batch_id(0),
       assigned_credit(0),
       desired_batch_size(50), // TODO: at least put default in some header
+      weight(1.0),
       redeployable(false) {
   // nop
 }

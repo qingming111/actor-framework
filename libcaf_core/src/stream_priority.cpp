@@ -25,6 +25,8 @@ std::string to_string(stream_priority x) {
   switch (x) {
     default:
       return "invalid";
+    case stream_priority::highest:
+      return "highest";
     case stream_priority::very_high:
       return "very_high";
     case stream_priority::high:
@@ -35,6 +37,8 @@ std::string to_string(stream_priority x) {
       return "low";
     case stream_priority::very_low:
       return "very_low";
+    case stream_priority::lowest:
+      return "lowest";
   }
 }
 

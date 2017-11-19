@@ -69,6 +69,9 @@ public:
   /// Ideal size for individual batches.
   long desired_batch_size;
 
+  /// Configures the relative importance of this path.
+  double weight;
+
   /// Stores whether the source actor is failsafe, i.e., allows the runtime to
   /// redeploy it on failure.
   bool redeployable;

@@ -32,6 +32,8 @@
 #include "caf/type_erased_tuple.hpp"
 #include "caf/actor_control_block.hpp"
 
+#include "caf/intrusive/doubly_linked.hpp"
+
 #include "caf/meta/type_name.hpp"
 #include "caf/meta/omittable_if_empty.hpp"
 
@@ -41,15 +43,11 @@
 
 namespace caf {
 
-class mailbox_element : public memory_managed, public message_view {
+class mailbox_element : public memory_managed,
+                        public intrusive::doubly_linked<mailbox_element>,
+                        public message_view {
 public:
   using forwarding_stack = std::vector<strong_actor_ptr>;
-
-  /// Intrusive pointer to the next mailbox element.
-  mailbox_element* next;
-
-  /// Intrusive pointer to the previous mailbox element.
-  mailbox_element* prev;
 
   /// Avoids multi-processing in blocking actors via flagging.
   bool marked;

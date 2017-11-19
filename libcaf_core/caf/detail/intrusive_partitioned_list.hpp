@@ -29,6 +29,8 @@
 #include "caf/behavior.hpp"
 #include "caf/invoke_message_result.hpp"
 
+#include "caf/intrusive/doubly_linked.hpp"
+
 namespace caf {
 namespace detail {
 
@@ -41,7 +43,9 @@ template <class T, class Delete = std::default_delete<T>>
 class intrusive_partitioned_list {
 public:
   using value_type = T;
+
   using pointer = value_type*;
+
   using deleter_type = Delete;
 
   struct iterator : std::iterator<std::bidirectional_iterator_tag, value_type> {
@@ -55,37 +59,37 @@ public:
     iterator& operator=(const iterator&) = default;
 
     iterator& operator++() {
-      ptr = ptr->next;
+      ptr = promote(ptr->next);
       return *this;
     }
 
     iterator operator++(int) {
       iterator res = *this;
-      ptr = ptr->next;
+      ptr = promote(ptr->next);
       return res;
     }
 
     iterator& operator--() {
-      ptr = ptr->prev;
+      ptr = promote(ptr->prev);
       return *this;
     }
 
     iterator operator--(int) {
       iterator res = *this;
-      ptr = ptr->prev;
+      ptr = promote(ptr->prev);
       return res;
     }
 
     const value_type& operator*() const {
-      return *ptr;
+      return *promote(ptr);
     }
 
     value_type& operator*() {
-      return *ptr;
+      return *promote(ptr);
     }
 
     pointer operator->() {
-      return ptr;
+      return promote(ptr);
     }
 
     bool operator==(const iterator& other) const {
@@ -97,7 +101,7 @@ public:
     }
 
     iterator next() const {
-      return ptr->next;
+      return promote(ptr->next);
     }
   };
 
@@ -113,7 +117,7 @@ public:
   }
 
   iterator begin() {
-    return head_.next;
+    return promote(head_.next);
   }
 
   iterator separator() {
@@ -121,7 +125,7 @@ public:
   }
 
   iterator continuation() {
-    return separator_.next;
+    return promote(separator_.next);
   }
 
   iterator end() {
@@ -188,7 +192,7 @@ public:
   iterator erase(iterator pos) {
     auto next = pos->next;
     delete_(take(pos));
-    return next;
+    return promote(next);
   }
 
   size_t count(size_t max_count = std::numeric_limits<size_t>::max()) {

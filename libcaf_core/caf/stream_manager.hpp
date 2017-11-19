@@ -36,6 +36,9 @@ class stream_manager : public ref_counted {
 public:
   ~stream_manager() override;
 
+  /// Dispatches to the appropriate member function.
+  error handle(stream_msg& sm);
+
   /// Handles `stream_msg::open` messages.
   /// @returns Initial credit to the source.
   /// @param hdl Handle to the sender.

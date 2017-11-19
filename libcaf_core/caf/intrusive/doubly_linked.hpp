@@ -17,37 +17,41 @@
  * http://www.boost.org/LICENSE_1_0.txt.                                      *
  ******************************************************************************/
 
-#ifndef CAF_STREAM_PRIORITY_HPP
-#define CAF_STREAM_PRIORITY_HPP
-
-#include <string>
+#ifndef CAF_INTRUSIVE_DOUBLY_LINKED_HPP
+#define CAF_INTRUSIVE_DOUBLY_LINKED_HPP
 
 namespace caf {
+namespace intrusive {
 
-/// Categorizes individual streams.
-enum class stream_priority {
-  /// Multiplexing normal traffic with this type results in a 10:1 split.
-  lowest = 10,
-  /// Multiplexing normal traffic with this type results in a 5:1 split.
-  very_low = 25,
-  /// Multiplexing normal traffic with this type results in a 2:1 split.
-  low = 50,
-  /// Default priority.
-  normal = 100,
-  /// Multiplexing normal traffic with this type results in a 1:2 split.
-  high = 200,
-  /// Multiplexing normal traffic with this type results in a 1:5 split.
-  very_high = 500,
-  /// Multiplexing normal traffic with this type results in a 1:10 split.
-  highest = 1000,
+/// Intrusive base for doubly linked types that allows queues to use `T` with
+/// dummy nodes.
+template <class T>
+struct doubly_linked {
+
+  using pointer = doubly_linked<T>*;
+
+  using dummy_type = doubly_linked<T>;
+
+  pointer next;
+
+  pointer prev;
+
+  doubly_linked(pointer n = nullptr, pointer p = nullptr) : next(n), prev(p) {
+    // nop
+  }
 };
 
-/// Stores the number of `stream_priority` classes.
-static constexpr size_t stream_priorities = 7;
+template <class T>
+T* promote(doubly_linked<T>* ptr) {
+  return static_cast<T*>(ptr);
+}
 
-/// @relates stream_priority
-std::string to_string(stream_priority x);
+template <class T>
+const T* promote(const doubly_linked<T>* ptr) {
+  return static_cast<const T*>(ptr);
+}
 
+} // namespace intrusive
 } // namespace caf
 
-#endif // CAF_STREAM_PRIORITY_HPP
+#endif // CAF_INTRUSIVE_DOUBLY_LINKED_HPP

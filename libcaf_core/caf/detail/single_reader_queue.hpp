@@ -55,9 +55,13 @@ template <class T, class Delete = std::default_delete<T>>
 class single_reader_queue {
 public:
   using value_type = T;
+
   using pointer = value_type*;
+
   using deleter_type = Delete;
+
   using unique_pointer = std::unique_ptr<value_type, deleter_type>;
+
   using cache_type = intrusive_partitioned_list<value_type, deleter_type>;
 
   /// Tries to dequeue a new element from the mailbox.
@@ -163,10 +167,15 @@ public:
     fetch_new_data();
     auto ptr = head_;
     while (ptr && res < max_count) {
-      ptr = ptr->next;
+      ptr = promote(ptr->next);
       ++res;
     }
     return res;
+  }
+
+  void prepend(pointer ptr) {
+    ptr->next = head_;
+    head_ = ptr;
   }
 
   pointer peek() {
@@ -196,7 +205,7 @@ public:
       auto tail = old_head;
       while (tail->next != nullptr)
         tail = tail->next;
-      // This gets new data from the stack and rewrite head_.
+      // This gets new data from the stack and rewrites head_.
       fetch_new_data();
       tail->next = head_;
       head_ = old_head;
@@ -207,6 +216,69 @@ public:
       ptr = ptr->next;
     }
   }
+  
+  /// Takes all element that match the given predicate.
+  template <class Predicate, class F>
+  size_t take_all(Predicate pred, F fun) {
+    auto ranges = cache_.ranges();
+    for (auto& range : ranges)
+      for (auto i = range.first; i != range.second;) {
+        if (pred(*i)) {
+          auto pos = i;
+          ++i;
+          fun(cache_.take(pos));
+        } else {
+          ++i;
+        }
+      }
+    // Fetch new data if needed
+    if (head_ == nullptr) {
+      fetch_new_data();
+    } else if (!is_dummy(stack_.load())) {
+      // Calling fetch_new_data() iterates the stack and prepends messages via
+      // head_. This would cause reordering of messages when traversing via
+      // peek_all. We hence store the current state of the singly-linked list
+      // pointed to by head_ and then reset the list before calling
+      // fetch_new_data. Finally, we prepend the old list in order to get a
+      // consistent view.
+      auto old_head = head_;
+      head_ = nullptr;
+      auto tail = old_head;
+      while (tail->next != nullptr)
+        tail = tail->next;
+      // This gets new data from the stack and rewrites head_.
+      fetch_new_data();
+      tail->next = head_;
+      head_ = old_head;
+    }
+    if (head_ == nullptr)
+      return 0u;
+    size_t count = 0u;
+    while (pred(*head_)) {
+      ++count;
+      auto next = head_->next;
+      fun(head_);
+      head_ = next;
+      if (head_ == nullptr)
+        return count;
+    }
+    auto prev = head_;
+    auto ptr = head_->next;
+    while (ptr != nullptr) {
+      if (pred(*ptr)) {
+        ++count;
+        auto res = ptr;
+        prev->next = ptr->next;
+        ptr = ptr->next;
+        fun(res);
+      } else {
+        prev = ptr;
+        ptr = ptr->next;
+      }
+    }
+    return count;
+  }
+
 
   // note: the cache is intended to be used by the owner, the queue itself
   //       never accesses the cache other than for counting;
@@ -266,6 +338,23 @@ public:
     return true;
   }
 
+  /// Take the stack pointer without re-ordering it to the cache.
+  pointer take_stack() {
+    auto end_ptr = stack_empty_dummy();
+    pointer e = stack_.load();
+    // must not be called on a closed queue
+    CAF_ASSERT(e != nullptr);
+    // fetching data while blocked is an error
+    CAF_ASSERT(e != reader_blocked_dummy());
+    // it's enough to check this once, since only the owner is allowed
+    // to close the queue and only the owner is allowed to call this
+    // member function
+    while (e != end_ptr)
+      if (stack_.compare_exchange_weak(e, end_ptr))
+        return e;
+    return nullptr;
+  }
+
 private:
   // exposed to "outside" access
   std::atomic<pointer> stack_;
@@ -300,7 +389,7 @@ private:
           auto next = e->next;
           e->next = head_;
           head_ = e;
-          e = next;
+          e = promote(next);
         }
         return true;
       }
@@ -316,7 +405,7 @@ private:
   pointer take_head() {
     if (head_ != nullptr || fetch_new_data()) {
       auto result = head_;
-      head_ = head_->next;
+      head_ = promote(head_->next);
       return result;
     }
     return nullptr;
@@ -325,7 +414,7 @@ private:
   template <class F>
   void clear_cached_elements(const F& f) {
     while (head_) {
-      auto next = head_->next;
+      auto next = promote(head_->next);
       f(*head_);
       delete_(head_);
       head_ = next;

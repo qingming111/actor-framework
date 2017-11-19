@@ -117,6 +117,9 @@ using ok_atom = atom_constant<atom("ok")>;
 /// Used for triggering system-level message handling.
 using sys_atom = atom_constant<atom("sys")>;
 
+/// Used for continuing the stream controller.
+using cont_stream_atom = atom_constant<atom("contStream")>;
+
 /// Used for signaling group subscriptions.
 using join_atom = atom_constant<atom("join")>;
 
